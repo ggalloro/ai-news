@@ -37,14 +37,26 @@ The entire pipeline is serverless, using a powerful **Cloud Run Job** for the ba
 
 ## Features
 
-- **Robust Batch Processing**: Uses a **Cloud Run Job** with a high-performance 2-CPU instance and a 1-hour timeout, ensuring reliable and fast processing of a large number of articles.
-- **Diverse Content**: Fetches and processes a balanced selection of the latest articles from multiple RSS feeds (OpenAI, Anthropic, etc.) to ensure variety.
-- **High-Quality Summarization**: Uses the **Gemini 2.5 Pro** model via the modern `google-genai` SDK to generate clean, conversational summaries in Italian.
-- **Professional Audio Generation**: Creates a separate audio segment for each summary and stitches them together with a proper intro and outro, resulting in a polished podcast.
-- **Secure by Default**: All audio files are stored in a **private** Google Cloud Storage bucket. The web application serves them securely to users and does not require public access.
-- **Efficient Web Interface**: A lightweight Flask web application, hosted on Cloud Run, that provides a simple interface to listen to the audio briefings.
-- **Fully Automated**: A Cloud Scheduler job triggers the entire process daily, making it a "set it and forget it" pipeline.
-- **Infrastructure as Code**: The entire stack can be deployed reliably using the provided Terraform configuration.
+- **Robust and Scalable Backend**: The core logic runs as a **Cloud Run Job**, designed for long-running, reliable batch processing. It's configured with a powerful 2-CPU instance, 2GiB of memory, and a 1-hour timeout, ensuring it can process a large volume of articles without failing.
+
+- **Diverse and Balanced Content Sourcing**: The application fetches the latest articles from a curated list of top-tier AI blogs (DeepMind, OpenAI, Anthropic, etc.). The logic ensures a balanced selection from each source, guaranteeing a varied and interesting daily briefing rather than a monologue from a single publisher.
+
+- **Stateful Processing**: The job is stateful, keeping track of the last article processed from each feed in a `last_processed_entries.json` file in the GCS bucket. This prevents reprocessing of old content and ensures that each daily run only includes what's new.
+
+- **Intelligent, High-Quality Summarization**: Each article is summarized using the **Gemini 2.5 Pro** model. The prompt is carefully engineered to instruct the AI to act as a professional Italian radio journalist, producing summaries that are conversational, engaging, and free of technical artifacts like markdown.
+
+- **Professional Audio Production**: The system generates a separate audio segment for each summary using Google's high-fidelity Text-to-Speech API. It then programmatically stitches these segments together with a professionally scripted intro and outro, creating a polished, podcast-style audio file.
+
+- **Secure by Default Architecture**:
+  - **Private Storage**: All generated audio files are stored in a **private** Google Cloud Storage bucket, inaccessible from the public internet.
+  - **Secure Access**: The web application does not expose public URLs. While the current Terraform setup uses a public bucket for simplicity, the application is architected to be easily switched to a secure model using Signed URLs.
+  - **Dedicated Identities**: The backend job and frontend service run with dedicated, least-privilege IAM service accounts, following modern security best practices.
+
+- **Lightweight Web Frontend**: A simple and efficient Flask web application, running as a **Cloud Run Service**, provides a clean user interface for listing and playing the daily audio briefings.
+
+- **Fully Automated and Scheduled**: A **Cloud Scheduler** job automatically triggers the backend process every morning, making the entire pipeline a "set it and forget it" solution.
+
+- **Infrastructure as Code**: The entire cloud infrastructure—from service accounts and APIs to the Cloud Run services themselves—is defined in **Terraform**. This allows for reliable, repeatable, and auditable deployments in any Google Cloud project.
 
 ## Project Structure
 
@@ -117,9 +129,36 @@ The recommended way to deploy this application is by using the provided Terrafor
 6.  **Access Your Application:**
     Once the `apply` command is complete, Terraform will output the URL of your web application.
 
+## Deploying Application Updates
+
+If you only need to update the application code for the backend job or the frontend web app, you do not need to re-run `terraform apply`. You can deploy updates directly using the `gcloud` CLI.
+
+### Updating the Backend Job (`rss-audio-generator-job`)
+
+After making changes to the code in the `function/` directory:
+
+```bash
+gcloud run jobs deploy rss-audio-generator-job \
+    --source=./function \
+    --project=<YOUR_PROJECT_ID> \
+    --region=europe-west1 
+```
+
+### Updating the Frontend Web App (`rss-summaries-webapp`)
+
+After making changes to the code in the `webapp/` directory:
+
+```bash
+gcloud run deploy rss-summaries-webapp \
+    --source=./webapp \
+    --project=<YOUR_PROJECT_ID> \
+    --region=europe-west1
+```
+
 ---
 
 ## Local Testing
+
 
 ### Testing the Web App
 
