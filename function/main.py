@@ -17,9 +17,10 @@ PROJECT_ID = os.environ.get("PROJECT_ID")
 GEMINI_SECRET_NAME = "gemini-api-key"
 
 RSS_FEEDS = [
-    "https://openai.com/blog/rss.xml",
+    "https://deepmind.google/blog/rss.xml",
+    "https://ai.googleblog.com/feeds/posts/default",
     "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml",
-    "https://philschmid.de/rss.xml",
+    "https://openai.com/blog/rss.xml",
     "https://simonwillison.net/atom/everything/"
 ]
 
