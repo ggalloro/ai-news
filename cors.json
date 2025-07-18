@@ -1,7 +1,0 @@
-[
-  {
-    "origin": ["https://rss-summaries-webapp-257885841248.us-central1.run.app"],
-    "method": ["GET"],
-    "maxAgeSeconds": 3600
-  }
-]

@@ -1,35 +1,68 @@
 # AI News Audio Briefing
 
-This project is a fully automated, cloud-native application that fetches the latest articles from AI-focused RSS feeds, generates a conversational audio summary in Italian, and serves it through a simple web interface.
+This project is a fully automated, cloud-native application that fetches the latest articles from multiple AI-focused RSS feeds, generates a conversational audio podcast in Italian, and serves it through a simple web interface.
 
-The entire pipeline is serverless, using Google Cloud Functions for backend processing and Cloud Run for the web frontend.
+The entire pipeline is serverless, using a powerful **Cloud Run Job** for the backend batch processing and a **Cloud Run Service** for the web frontend. This architecture is designed for performance, scalability, and reliability.
+
+## Architecture Diagram
+
+```
+                               +-------------------------+
+                               |   Cloud Scheduler       |
+                               | (daily-rss-summary-job) |
+                               +------------+------------+
+                                            | (Triggers daily)
+                                            |
+              +-----------------------------v------------------------------+
+              |  Cloud Run Job (rss-audio-generator-job)                   |
+              |  (2 CPU, 2GiB Memory, 1-hour timeout)                      |
+              |                                                            |
+              |  1. Fetches RSS from multiple sources (OpenAI, etc.)       |
+              |  2. Checks GCS for last processed articles                 |
+              |  3. Calls Gemini API for high-quality summarization        |
+              |  4. Calls Text-to-Speech API to generate audio segments    |
+              |  5. Stitches audio into a single MP3 file                  |
+              |  6. Uploads final MP3 to GCS Bucket                        |
+              |  7. Updates `last_processed_entries.json` state file       |
+              +-----------------------------+------------------------------+
+                                            |
+                                            | (Writes to)
+                                            v
++-------------------------+      +-------------------------+      +----------------------------+
+|   Secret Manager        |      |   Cloud Storage         |      |   Cloud Run Service        |
+| (Stores Gemini API Key) | <----+ (Private GCS Bucket)    +------> | (rss-summaries-webapp)     |
++-------------------------+      +-------------------------+      | (Serves audio files)       |
+                                                                  +----------------------------+
+```
 
 ## Features
 
-- **Automated Content Fetching**: Periodically fetches new articles from configured RSS feeds (OpenAI Blog, Google AI Blog).
-- **AI-Powered Summarization**: Uses the Gemini 2.5 Pro model to generate a concise summary for each new article in Italian.
-- **Narrative Generation**: Takes the individual summaries and uses Gemini 2.5 Pro again to create a single, cohesive, podcast-style script.
-- **High-Quality Audio**: Converts the final narrative script into a natural-sounding Italian voice using Google's WaveNet Text-to-Speech API.
-- **Cloud Storage**: Securely stores the generated MP3 audio files in a Google Cloud Storage bucket.
-- **Web Interface**: A simple Flask web application, hosted on Cloud Run, that lists and streams all historical audio summaries.
-- **Scheduled Execution**: A Cloud Scheduler job automatically triggers the entire process daily, ensuring you always have the latest briefing.
+- **Robust Batch Processing**: Uses a **Cloud Run Job** with a high-performance 2-CPU instance and a 1-hour timeout, ensuring reliable and fast processing of a large number of articles.
+- **Diverse Content**: Fetches and processes a balanced selection of the latest articles from multiple RSS feeds (OpenAI, Anthropic, etc.) to ensure variety.
+- **High-Quality Summarization**: Uses the **Gemini 2.5 Pro** model via the modern `google-genai` SDK to generate clean, conversational summaries in Italian.
+- **Professional Audio Generation**: Creates a separate audio segment for each summary and stitches them together with a proper intro and outro, resulting in a polished podcast.
+- **Secure by Default**: All audio files are stored in a **private** Google Cloud Storage bucket. The web application serves them securely to users and does not require public access.
+- **Efficient Web Interface**: A lightweight Flask web application, hosted on Cloud Run, that provides a simple interface to listen to the audio briefings.
+- **Fully Automated**: A Cloud Scheduler job triggers the entire process daily, making it a "set it and forget it" pipeline.
+- **Infrastructure as Code**: The entire stack can be deployed reliably using the provided Terraform configuration.
 
 ## Project Structure
-
-The project is divided into two main components, following a standard microservices architecture:
 
 ```
 /
 ├── function/
-│   ├── main.py         # The backend Cloud Function logic
-│   └── requirements.txt  # Python dependencies for the function
+│   ├── main.py         # The backend Cloud Run Job logic
+│   ├── Dockerfile      # Container definition for the job
+│   └── requirements.txt  # Python dependencies for the job
 │
 ├── webapp/
-│   ├── main.py         # The frontend Flask web app logic
-│   ├── requirements.txt  # Python dependencies for the web app
-│   ├── Dockerfile      # Container definition for Cloud Run
-│   └── templates/
-│       └── index.html  # HTML template for the web page
+│   ├── main.py         # The frontend Cloud Run Service logic
+│   ├── Dockerfile      # Container definition for the service
+│   └── requirements.txt  # Python dependencies for the service
+│
+├── terraform/
+│   ├── main.tf         # Terraform configuration for the entire stack
+│   └── ...             # Other Terraform files
 │
 └── README.md           # This file
 ```
@@ -38,162 +71,83 @@ The project is divided into two main components, following a standard microservi
 
 ## Cloud Deployment Guide
 
-This guide will walk you through deploying the entire application to Google Cloud.
+The recommended way to deploy this application is by using the provided Terraform configuration.
 
 ### Prerequisites
 
-1.  **Google Cloud Project**: You must have a Google Cloud project with billing enabled.
-2.  **gcloud CLI**: The [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) must be installed and authenticated (`gcloud auth login`).
-3.  **Project ID**: Know your Google Cloud Project ID.
-4.  **GCS Bucket Name**: Choose a **globally unique** name for your Cloud Storage bucket (e.g., `your-name-audio-summaries`).
-5.  **Gemini API Key**: Have your [Gemini API Key](https://aistudio.google.com/app/apikey) ready.
+1.  [Terraform CLI](https://learn.hashicorp.com/tutorials/terraform/install-cli) installed.
+2.  [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and authenticated (`gcloud auth application-default login`).
+3.  A Google Cloud project with billing enabled.
+4.  Permissions to enable APIs and create all the resources defined in the Terraform configuration (e.g., `Owner` or `Editor` roles).
 
-### Step 1: Initial Google Cloud Setup
+### Deployment Steps
 
-Run the following commands in your terminal to configure your cloud environment.
+1.  **Navigate to the Terraform Directory:**
+    ```bash
+    cd terraform
+    ```
 
-**1. Enable Required APIs**
-```bash
-gcloud services enable \
-    run.googleapis.com \
-    cloudfunctions.googleapis.com \
-    cloudbuild.googleapis.com \
-    secretmanager.googleapis.com \
-    cloudscheduler.googleapis.com \
-    storage.googleapis.com \
-    texttospeech.googleapis.com
-```
+2.  **Create a `terraform.tfvars` file:**
+    This is the most secure way to provide your project-specific variables. Create the file and add the following content, replacing the placeholder values:
+    ```hcl
+    project_id      = "your-gcp-project-id"
+    gcs_bucket_name = "your-globally-unique-bucket-name"
+    gemini_api_key  = "your-gemini-api-key"
+    ```
 
-**2. Create the GCS Bucket**
-Replace `<YOUR_UNIQUE_BUCKET_NAME>` with the name you chose.
-```bash
-gcloud storage buckets create gs://<YOUR_UNIQUE_BUCKET_NAME> --location=europe-west1
-```
+3.  **Initialize Terraform:**
+    This command downloads the necessary provider plugins.
+    ```bash
+    terraform init
+    ```
 
-**3. Create a Service Account**
-This account will be the identity for your services.
-```bash
-gcloud iam service-accounts create rss-summarizer-sa --display-name="RSS Summarizer Service Account"
-```
+4.  **Plan the Deployment:**
+    This command shows you what resources will be created. It's a dry run and is safe to run.
+    ```bash
+    terraform plan
+    ```
 
-**4. Grant Permissions to the Service Account**
-Replace `<YOUR_PROJECT_ID>` and `<YOUR_SERVICE_ACCOUNT_EMAIL>` (e.g., `rss-summarizer-sa@<YOUR_PROJECT_ID>.iam.gserviceaccount.com`).
-```bash
-# Grant access to the specific bucket
-gcloud storage buckets add-iam-policy-binding gs://<YOUR_UNIQUE_BUCKET_NAME> \
-    --member="serviceAccount:<YOUR_SERVICE_ACCOUNT_EMAIL>" \
-    --role="roles/storage.objectAdmin"
+5.  **Apply the Configuration:**
+    This command will build the container images and deploy all the cloud resources.
+    ```bash
+    terraform apply
+    ```
+    Terraform will ask for confirmation. Type `yes` to proceed. The deployment will take several minutes.
 
-# Grant access to Text-to-Speech and Secret Manager at the project level
-gcloud projects add-iam-policy-binding <YOUR_PROJECT_ID> \
-    --member="serviceAccount:<YOUR_SERVICE_ACCOUNT_EMAIL>" \
-    --role="roles/texttospeech.client"
-
-gcloud projects add-iam-policy-binding <YOUR_PROJECT_ID> \
-    --member="serviceAccount:<YOUR_SERVICE_ACCOUNT_EMAIL>" \
-    --role="roles/secretmanager.secretAccessor"
-```
-
-**5. Store Your Gemini API Key in Secret Manager**
-Replace `<YOUR_GEMINI_API_KEY>` with your actual key.
-```bash
-gcloud secrets create gemini-api-key --replication-policy="automatic"
-echo -n "<YOUR_GEMINI_API_KEY>" | gcloud secrets versions add gemini-api-key --data-file=-
-```
-
-### Step 2: Deploy the Services
-
-**1. Deploy the Backend Cloud Function**
-This command deploys the code in the `function/` directory.
-```bash
-gcloud functions deploy rss-summarizer-function \
-    --gen2 \
-    --runtime=python311 \
-    --region=europe-west1 \
-    --source=./function \
-    --entry-point=process_rss_feeds \
-    --trigger-http \
-    --allow-unauthenticated \
-    --service-account=<YOUR_SERVICE_ACCOUNT_EMAIL> \
-    --set-env-vars=PROJECT_ID=<YOUR_PROJECT_ID>,GCS_BUCKET_NAME=<YOUR_UNIQUE_BUCKET_NAME>
-```
-
-**2. Deploy the Frontend Web App**
-This command deploys the code in the `webapp/` directory.
-```bash
-gcloud run deploy rss-summaries-webapp \
-    --source=./webapp \
-    --platform=managed \
-    --region=europe-west1 \
-    --allow-unauthenticated \
-    --service-account=<YOUR_SERVICE_ACCOUNT_EMAIL> \
-    --set-env-vars=GCS_BUCKET_NAME=<YOUR_UNIQUE_BUCKET_NAME>
-```
-
-### Step 3: Schedule the Function
-
-This final command creates a job to run your function every morning at 8:00 AM Eastern Time.
-
-First, get your function's URL:
-```bash
-FUNCTION_URL=$(gcloud functions describe rss-summarizer-function --region=europe-west1 --gen2 --format="value(serviceConfig.uri)")
-```
-
-Now, create the scheduler job:
-```bash
-gcloud scheduler jobs create http daily-rss-summary-job \
-    --schedule="0 8 * * *" \
-    --uri=$FUNCTION_URL \
-    --http-method=POST \
-    --time-zone="Europe/Rome"
-```
-
-Your application is now fully deployed and automated!
+6.  **Access Your Application:**
+    Once the `apply` command is complete, Terraform will output the URL of your web application.
 
 ---
 
 ## Local Testing
 
-While the backend function is best tested by invoking it in the cloud, the frontend web app can be tested locally.
+### Testing the Web App
 
-### Prerequisites
-
--   Python 3.11+
--   A virtual environment
-
-### Steps to Test the Web App Locally
+The web application can be tested locally, but it requires you to have a GCS bucket with audio files already in it.
 
 1.  **Navigate to the webapp directory:**
     ```bash
     cd webapp
     ```
-
-2.  **Create and activate a virtual environment:**
+2.  **Activate a virtual environment:**
     ```bash
-    python3 -m venv venv
-    source venv/bin/activate
-    ```
-
-3.  **Install dependencies:**
-    ```bash
+    python3 -m venv venv && source venv/bin/activate
     pip install -r requirements.txt
     ```
-
-4.  **Authenticate to Google Cloud:**
-    Your local application needs to authenticate to access the GCS bucket. The easiest way is to use Application Default Credentials.
+3.  **Authenticate to Google Cloud:**
     ```bash
     gcloud auth application-default login
     ```
-
-5.  **Set Environment Variables:**
-    The app needs to know which bucket to read from.
+4.  **Set Environment Variables:**
     ```bash
-    export GCS_BUCKET_NAME=<YOUR_UNIQUE_BUCKET_NAME>
+    export GCS_BUCKET_NAME="<YOUR_GCS_BUCKET_NAME>"
     ```
-
-6.  **Run the Flask App:**
+5.  **Run the Flask App:**
     ```bash
-    flask run
+    flask --app main run
     ```
+    You can now access the web app at `http://127.0.0.1:5000`.
 
-You can now open your browser to `http://127.0.0.1:5000` to see the web interface.
+### Testing the Backend Job
+
+The backend job is designed to run in the cloud and relies on the Cloud Run environment's service account and metadata server. Therefore, **local testing of the job is not recommended**. The most reliable way to test it is to trigger it in the cloud after deployment.
