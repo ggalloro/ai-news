@@ -1,6 +1,6 @@
 # AI News Audio Briefing
 
-This project is a fully automated, cloud-native application that fetches the latest articles from multiple AI-focused RSS feeds, generates a conversational audio podcast in Italian, and serves it through a simple web interface.
+This project is a fully automated, cloud-native application that fetches the latest articles from multiple AI-focused RSS feeds, generates a conversational audio podcast, and serves it through a simple web interface.
 
 The entire pipeline is serverless, using a powerful **Cloud Run Job** for the backend batch processing and a **Cloud Run Service** for the web frontend. This architecture is designed for performance, scalability, and reliability.
 
@@ -43,7 +43,7 @@ The entire pipeline is serverless, using a powerful **Cloud Run Job** for the ba
 
 - **Stateful Processing**: The job is stateful, keeping track of the last article processed from each feed in a `last_processed_entries.json` file in the GCS bucket. This prevents reprocessing of old content and ensures that each daily run only includes what's new.
 
-- **Intelligent, High-Quality Summarization**: Each article is summarized using the **Gemini 2.5 Pro** model. The prompt is carefully engineered to instruct the AI to act as a professional Italian radio journalist, producing summaries that are conversational, engaging, and free of technical artifacts like markdown.
+- **Intelligent, High-Quality Summarization**: Each article is summarized using the **Gemini 2.5 Pro** model. The prompt is carefully engineered to instruct the AI to act as a professional podcast host, producing summaries that are conversational, engaging, and free of technical artifacts like markdown.
 
 - **Professional Audio Production**: The system generates a separate audio segment for each summary using Google's high-fidelity Text-to-Speech API. It then programmatically stitches these segments together with a professionally scripted intro and outro, creating a polished, podcast-style audio file.
 

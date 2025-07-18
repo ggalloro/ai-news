@@ -78,7 +78,7 @@ def get_new_rss_entries(feed_urls, last_times):
     return all_new_entries, latest_times
 
 def summarize_entries(entries, api_key):
-    """Summarizes each RSS entry individually in Italian."""
+    """Summarizes each RSS entry individually in English."""
     if not entries:
         return []
     
@@ -88,17 +88,17 @@ def summarize_entries(entries, api_key):
     for entry in entries:
         content = entry.get('content', [{}])[0].get('value', entry.get('summary', ''))
         prompt = f"""
-        Your role is a professional radio news journalist writing a script for an Italian-language audio briefing on Artificial Intelligence.
+        Your role is a professional podcast host writing a script for an English-language audio briefing on Artificial Intelligence.
         Your task is to summarize the following article.
         
         Guidelines for the summary:
-        - Write in a natural, conversational, and engaging Italian radio style.
+        - Write in a natural, conversational, and engaging podcast style.
         - The output must be a clean paragraph of plain text.
         - It must be suitable for direct text-to-speech conversion.
 
         **CRITICAL INSTRUCTIONS:**
         - **DO NOT** use any Markdown formatting (e.g., no asterisks, no hashes, no lists).
-        - **DO NOT** begin with conversational filler like "Certamente, ecco un riassunto..." or "Ecco un riassunto...".
+        - **DO NOT** begin with conversational filler like "Of course, here is a summary..." or "Here is a summary...".
         - **DO NOT** announce what you are doing. Just provide the summary directly.
         
         Article to summarize:
@@ -113,7 +113,7 @@ def summarize_entries(entries, api_key):
             individual_summaries.append({'title': entry.title, 'summary': response.text.strip()})
         except Exception as e:
             print(f"    Error summarizing article {entry.title}: {e}")
-            individual_summaries.append({'title': entry.title, 'summary': 'Riassunto non disponibile.'})
+            individual_summaries.append({'title': entry.title, 'summary': 'Summary not available.'})
             
     return individual_summaries
 
@@ -135,17 +135,17 @@ def generate_and_upload_stitched_audio(summaries, bucket_name):
     try:
         tts_client = texttospeech.TextToSpeechClient()
         storage_client = storage.Client()
-        voice = texttospeech.VoiceSelectionParams(language_code="it-IT", name="it-IT-Wavenet-A")
+        voice = texttospeech.VoiceSelectionParams(language_code="en-US", name="en-US-Studio-O")
         audio_config = texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.MP3)
         temp_dir = "/tmp/temp_audio"
         os.makedirs(temp_dir, exist_ok=True)
         all_audio_segments = []
-        intro_text = "Buongiorno e benvenuti al vostro briefing sull'intelligenza artificiale. Ecco le notizie di oggi."
+        intro_text = "Good morning, and welcome to your AI briefing. Here is the latest news."
         intro_segment = text_to_audio_segment(intro_text, tts_client, temp_dir, voice, audio_config)
         if intro_segment:
             all_audio_segments.append(intro_segment)
         for summary in summaries:
-            title_text = f"La prossima notizia è intitolata: {summary['title']}."
+            title_text = f"The next story is titled: {summary['title']}."
             summary_text = summary['summary']
             title_segment = text_to_audio_segment(title_text, tts_client, temp_dir, voice, audio_config)
             if title_segment:
@@ -156,7 +156,7 @@ def generate_and_upload_stitched_audio(summaries, bucket_name):
                 summary_segment = text_to_audio_segment(chunk, tts_client, temp_dir, voice, audio_config)
                 if summary_segment:
                     all_audio_segments.append(summary_segment)
-        outro_text = "E questo è tutto per il vostro briefing di oggi. Grazie per l'ascolto."
+        outro_text = "And that's all for your briefing today. Thanks for listening."
         outro_segment = text_to_audio_segment(outro_text, tts_client, temp_dir, voice, audio_config)
         if outro_segment:
             all_audio_segments.append(outro_segment)
