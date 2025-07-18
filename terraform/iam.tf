@@ -1,16 +1,10 @@
 # --- Service Accounts ---
 
-# Service account for the Cloud Run Job (audio generator)
 resource "google_service_account" "job_runner_sa" {
   account_id   = "job-runner-sa"
   display_name = "Audio Generation Job Runner SA"
 }
 
-# Service account for the Cloud Run Service (webapp)
-# Note: This was the final, correct implementation for secure Signed URLs.
-# However, since that implementation failed, we are reverting to the simpler,
-# public-bucket model for this Terraform setup to ensure it works reliably.
-# A dedicated SA is still good practice.
 resource "google_service_account" "webapp_sa" {
   account_id   = "webapp-service-sa"
   display_name = "Web App Service SA"
@@ -39,9 +33,7 @@ resource "google_storage_bucket_iam_member" "webapp_storage_viewer" {
 }
 
 # Permissions for the Cloud Scheduler to invoke the Cloud Run Job
-# It uses the default App Engine service account.
 data "google_project" "project" {
-  project_id = var.project_id
 }
 
 resource "google_cloud_run_v2_job_iam_member" "scheduler_invoker" {
@@ -49,5 +41,29 @@ resource "google_cloud_run_v2_job_iam_member" "scheduler_invoker" {
   location = var.region
   name     = google_cloud_run_v2_job.rss_audio_generator.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${data.google_project.project.number}@cloudbuild.gserviceaccount.com"
+  member   = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
+
+resource "google_project_iam_member" "terraform_gcloud_sa_storage_admin" {
+  project = var.project_id
+  role    = "roles/storage.admin" # Broad role to ensure it can write to the _cloudbuild bucket
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
+resource "google_project_iam_member" "terraform_gcloud_sa_artifact_writer" {
+  project = var.project_id
+  role    = "roles/artifactregistry.writer"
+  member  = "serviceAccount:${data.google_project.project.number}-compute@developer.gserviceaccount.com"
+}
+
+
+
+resource "time_sleep" "iam_wait" {
+  create_duration = "120s"
+
+  depends_on = [
+    google_project_iam_member.terraform_gcloud_sa_storage_admin,
+    google_project_iam_member.terraform_gcloud_sa_artifact_writer,
+  ]
 }

@@ -1,36 +1,47 @@
-# This resource configures Cloud Build to build and push a container image.
-# It acts as a data source, meaning the image is only built when `terraform apply` is run.
-data "google_cloud_build_trigger" "job_builder" {
-  provider = google-beta
-  project    = var.project_id
-  trigger_id = "placeholder" # This is not used, but required by the provider
-  filename   = "cloudbuild.yaml" # Assumes a cloudbuild.yaml, we will create an inline one instead
-  
-  # We define the build steps inline here
-  build {
-    step {
-      name = "gcr.io/cloud-builders/docker"
-      args = [
-        "build",
-        "-t",
-        "${var.region}-docker.pkg.dev/${var.project_id}/cloud-run-source-deploy/rss-audio-generator-job",
-        "../function", # Path to the directory with the Dockerfile
-      ]
-    }
-    step {
-      name = "gcr.io/cloud-builders/docker"
-      args = [
-        "push",
-        "${var.region}-docker.pkg.dev/${var.project_id}/cloud-run-source-deploy/rss-audio-generator-job",
-      ]
-    }
-  }
+# --- Artifact Registry ---
+
+resource "google_artifact_registry_repository" "docker_repo" {
+  location      = var.region
+  repository_id = "app-images"
+  format        = "DOCKER"
 }
+
+# --- Cloud Build and Deploy ---
+
+# Build the Job container image
+resource "null_resource" "build_job_image" {
+  triggers = {
+    # This will re-build the image if any file in the directory changes
+    source_hash = filesha256("../function/main.py")
+  }
+
+  provisioner "local-exec" {
+    command = "gcloud builds submit ../function --tag ${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/rss-audio-generator-job:latest --project=${var.project_id}"
+  }
+
+  depends_on = [time_sleep.iam_wait]
+}
+
+# Build the Webapp container image
+resource "null_resource" "build_webapp_image" {
+  triggers = {
+    source_hash = filesha256("../webapp/main.py")
+  }
+
+  provisioner "local-exec" {
+    command = "gcloud builds submit ../webapp --tag ${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/rss-summaries-webapp:latest --project=${var.project_id}"
+  }
+
+  depends_on = [time_sleep.iam_wait]
+}
+
+# --- Cloud Run Job (Audio Generator) ---
 
 resource "google_cloud_run_v2_job" "rss_audio_generator" {
   name     = "rss-audio-generator-job"
   location = var.region
-  
+  depends_on = [null_resource.build_job_image]
+
   template {
     task_count = 1
     template {
@@ -39,7 +50,7 @@ resource "google_cloud_run_v2_job" "rss_audio_generator" {
       timeout         = "3600s" # 1 hour
 
       containers {
-        image = data.google_cloud_build_trigger.job_builder.build.images[0]
+        image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/rss-audio-generator-job:latest"
         resources {
           limits = {
             cpu    = "2"
@@ -65,40 +76,15 @@ resource "google_cloud_run_v2_job" "rss_audio_generator" {
 
 # --- Cloud Run Service (Web App) ---
 
-data "google_cloud_build_trigger" "webapp_builder" {
-  provider = google-beta
-  project    = var.project_id
-  trigger_id = "placeholder"
-  filename   = "cloudbuild.yaml"
-
-  build {
-    step {
-      name = "gcr.io/cloud-builders/docker"
-      args = [
-        "build",
-        "-t",
-        "${var.region}-docker.pkg.dev/${var.project_id}/cloud-run-source-deploy/rss-summaries-webapp",
-        "../webapp",
-      ]
-    }
-    step {
-      name = "gcr.io/cloud-builders/docker"
-      args = [
-        "push",
-        "${var.region}-docker.pkg.dev/${var.project_id}/cloud-run-source-deploy/rss-summaries-webapp",
-      ]
-    }
-  }
-}
-
 resource "google_cloud_run_v2_service" "rss_summaries_webapp" {
   name     = "rss-summaries-webapp"
   location = var.region
+  depends_on = [null_resource.build_webapp_image]
 
   template {
     service_account = google_service_account.webapp_sa.email
     containers {
-      image = data.google_cloud_build_trigger.webapp_builder.build.images[0]
+      image = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.docker_repo.repository_id}/rss-summaries-webapp:latest"
       ports {
         container_port = 8080
       }
