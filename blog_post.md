@@ -85,11 +85,11 @@ def get_new_rss_entries(feed_urls, last_times):
 
 ### Prompt 2: Intelligent Summarization with Gemini
 
-Next, I needed to summarize the content. The key here was not just to get a summary, but to get one that sounded natural and conversational, as if written for a podcast. This is where prompt engineering becomes crucial.
+Next, I needed to summarize the content. The key here was not just to get a summary, but to get one that sounded natural and conversational, as if written for a podcast. This is where the Gemini model's ability to understand nuanced instructions becomes crucial. A simple "summarize this" prompt often results in dry, robotic text unsuitable for audio.
 
 > **Prompt:** "Write a Python function that takes a list of articles and uses the Gemini 2.5 Pro model to summarize each one. The prompt to the model should instruct it to act as a professional podcast host, writing a clean, conversational paragraph in English suitable for text-to-speech, with no markdown or filler phrases."
 
-The resulting function initializes the modern `google-genai` client and iterates through the articles, using a carefully crafted prompt to get the perfect output.
+By giving the model a clear **persona** ("professional podcast host") and **negative constraints** ("DO NOT use markdown"), we get a much higher quality output. The resulting function initializes the modern `google-genai` client and iterates through the articles, using this carefully crafted prompt to get the perfect output.
 
 ```python
 def summarize_entries(entries, api_key):
