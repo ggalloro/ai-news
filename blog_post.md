@@ -133,7 +133,8 @@ def generate_and_upload_stitched_audio(summaries, bucket_name):
         
         # ... export and upload to GCS ...
         
-        return blob.public_url
+        return "gs://<your-bucket-name>/summary-YYYY-MM-DD.mp3"
+        
     except Exception as e:
         # ... error handling ...
         return None
