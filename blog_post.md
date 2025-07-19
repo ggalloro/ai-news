@@ -10,36 +10,7 @@ You can find the complete code for this project on GitHub: [https://github.com/g
 
 The application is split into two main serverless components, creating a clean and scalable pipeline from content to listener.
 
-```
-                               +-------------------------+
-                               |   Cloud Scheduler       |
-                               | (daily-rss-summary-job) |
-                               +------------+------------+
-                                            | (Triggers daily)
-                                            |
-              +-----------------------------v------------------------------+
-              |  Cloud Run Job (rss-audio-generator-job)                   |
-              |                                                            |
-              |  1. Fetches RSS from multiple sources                      |
-              |  2. Calls Gemini API for summarization                     |
-              |  3. Calls Text-to-Speech API for audio generation          |
-              |  4. Stitches audio and uploads to GCS                      |
-              +-----------------------------+------------------------------+
-                                            |
-                       +--------------------+--------------------+
-                       | (Calls API)        | (Calls API)        |
-                       v                    v                    v
-+------------------+  +------------------+  +------------------+  +------------------+
-|  Secret Manager  |  |    Gemini API    |  | Text-to-Speech   |  |  Cloud Storage   |
-+------------------+  +------------------+  +------------------+  +------------------+
-                                                                         |
-                                                                         | (Serves files to)
-                                                                         v
-                                                              +---------------------+
-                                                              | Cloud Run Service   |
-                                                              | (webapp)            |
-                                                              +---------------------+
-```
+![AI News Architecture](img/ai-news_architecture.png)
 
 1.  **Cloud Scheduler:** A simple cron job that kicks off the entire process every morning.
 2.  **Cloud Run Job:** The heart of the application. This containerized Python script runs on a powerful instance to perform the main processing tasks.
@@ -171,6 +142,8 @@ def generate_and_upload_stitched_audio(summaries, bucket_name):
 ## The Frontend: A Simple Interface
 
 The frontend is a standard Flask application, also containerized and deployed as a Cloud Run Service. Its only job is to list the available MP3 files from the Cloud Storage bucket and present them to the user with a simple HTML5 audio player.
+
+![AI News Web App UI](img/ai-news_web-app.png)
 
 ## Conclusion
 
