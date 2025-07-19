@@ -15,24 +15,26 @@ The entire pipeline is serverless, using a powerful **Cloud Run Job** for the ba
                                             |
               +-----------------------------v------------------------------+
               |  Cloud Run Job (rss-audio-generator-job)                   |
-              |  (2 CPU, 2GiB Memory, 1-hour timeout)                      |
               |                                                            |
-              |  1. Fetches RSS from multiple sources (OpenAI, etc.)       |
-              |  2. Checks GCS for last processed articles                 |
-              |  3. Calls Gemini API for high-quality summarization        |
-              |  4. Calls Text-to-Speech API to generate audio segments    |
-              |  5. Stitches audio into a single MP3 file                  |
-              |  6. Uploads final MP3 to GCS Bucket                        |
-              |  7. Updates `last_processed_entries.json` state file       |
+              |  1. Fetches RSS from multiple sources                      |
+              |  2. Calls Gemini API for summarization                     |
+              |  3. Calls Text-to-Speech API for audio generation          |
+              |  4. Stitches audio and uploads to GCS                      |
               +-----------------------------+------------------------------+
                                             |
-                                            | (Writes to)
-                                            v
-+-------------------------+      +-------------------------+      +----------------------------+
-|   Secret Manager        |      |   Cloud Storage         |      |   Cloud Run Service        |
-| (Stores Gemini API Key) | <----+ (Private GCS Bucket)    +------> | (rss-summaries-webapp)     |
-+-------------------------+      +-------------------------+      | (Serves audio files)       |
-                                                                  +----------------------------+
+                       +--------------------+--------------------+
+                       | (Calls API)        | (Calls API)        |
+                       v                    v                    v
++------------------+  +------------------+  +------------------+  +------------------+
+|  Secret Manager  |  |    Gemini API    |  | Text-to-Speech   |  |  Cloud Storage   |
++------------------+  +------------------+  +------------------+  +------------------+
+                                                                         |
+                                                                         | (Serves files to)
+                                                                         v
+                                                              +---------------------+
+                                                              | Cloud Run Service   |
+                                                              | (webapp)            |
+                                                              +---------------------+
 ```
 
 ## Features
