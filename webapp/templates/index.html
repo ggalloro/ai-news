@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Briefing Audio IA</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; color: #333; }
+        h1 { color: #0d47a1; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 2em; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .summary-item { margin-bottom: 1.5em; padding-bottom: 1.5em; border-bottom: 1px solid #ddd; }
+        .summary-item:last-child { border-bottom: none; }
+        h2 { margin-top: 0; }
+        audio { width: 100%; margin-top: 1em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Briefing Audio AI</h1>
+        {% if files %}
+            {% for file in files %}
+                <div class="summary-item">
+                    <h2>{{ file.name }}</h2>
+                    <audio controls>
+                        <source src="{{ file.url }}" type="audio/mpeg">
+                        Il tuo browser non supporta l'elemento audio.
+                    </audio>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>Nessun riassunto audio trovato.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,6 @@
+feedparser
+gtts
+google-generativeai
+google-cloud-texttospeech
+pydub
+google-cloud-storage
