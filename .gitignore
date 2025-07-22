@@ -1,0 +1,17 @@
+venv/
+instance/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+.gemini
+.env
+.terraform
+.terraform.lock.hcl
+terraform.tfstate*
+.terraform.tfstate*
+*.tfvars
+.vscode
+codegen_instructions.md
+
